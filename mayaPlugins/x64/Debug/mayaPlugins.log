@@ -1,0 +1,5 @@
+﻿  hello_maya.cpp
+  plugin_main.cpp
+  Generating Code...
+     Creating library C:\Users\roman\source\repos\mayaPlugins\x64\Debug\helloWorldNode.lib and object C:\Users\roman\source\repos\mayaPlugins\x64\Debug\helloWorldNode.exp
+  mayaPlugins.vcxproj -> C:\Users\roman\source\repos\mayaPlugins\x64\Debug\helloWorldNode.mll

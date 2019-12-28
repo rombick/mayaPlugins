@@ -1,0 +1,4 @@
+﻿  quaternionProduct.cpp
+C:\Users\roman\source\repos\quaternionProduct\quaternionProduct.cpp(48): warning C4018: '<': signed/unsigned mismatch
+     Creating library C:\Users\roman\source\repos\mayaPlugins\x64\Debug\quaternionProduct.lib and object C:\Users\roman\source\repos\mayaPlugins\x64\Debug\quaternionProduct.exp
+  quaternionProduct.vcxproj -> C:\Users\roman\source\repos\mayaPlugins\x64\Debug\quaternionProduct.mll
