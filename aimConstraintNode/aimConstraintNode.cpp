@@ -11,7 +11,12 @@ MObject AimConstraint::attrInOffsetMatrix;
 MObject AimConstraint::attrInParentMatrix;
 MObject AimConstraint::attrInUpMatrix;
 //MObject AimConstraint::attrInWorldMatrix;
+MObject AimConstraint::attrInAimAxis;
+MObject AimConstraint::attrInUpAxis;
+MObject AimConstraint::attrUpType;
 
+MObject AimConstraint::attrInFlipUp;
+MObject AimConstraint::attrInFlipAim;
 
 MObject AimConstraint::attrOutRotate;
 MObject AimConstraint::attrOutRotateX;
@@ -46,6 +51,14 @@ MStatus AimConstraint::compute(const MPlug& plug, MDataBlock& data) {
 	MMatrix aimMatrix = data.inputValue(attrInAimMatrix).asMatrix();
 	MMatrix upMatrix = data.inputValue(attrInUpMatrix).asMatrix();
 
+	bool flipAim = data.inputValue(attrInFlipAim).asBool();
+	bool flipUp = data.inputValue(attrInFlipUp).asBool();
+
+	short aimAxis = data.inputValue(attrInAimAxis).asShort();
+	short upAxis = data.inputValue(attrInUpAxis).asShort();
+	short upType = data.inputValue(attrUpType).asShort();
+
+
 	MVector aimPos = MTransformationMatrix(aimMatrix).getTranslation(MSpace::kWorld);
 	MVector upPos = MTransformationMatrix(upMatrix).getTranslation(MSpace::kWorld);
 	
@@ -64,32 +77,53 @@ MStatus AimConstraint::compute(const MPlug& plug, MDataBlock& data) {
 	//						data.inputValue(attrInTranslateZ).asFloat());
 	MVector srcPos = MTransformationMatrix(worldMatrix).getTranslation(MSpace::kWorld);
 
-	/*
-	char txt[512];
-	//sprintf_s(txt, 512, "srcPos %f %f %f,", srcPos.x, srcPos.y, srcPos.z);
-	sprintf_s(txt, 512, "localMtx %f %f %f,", localMatrix[4][0], localMatrix[4][1], localMatrix[4][2]);
-	MGlobal::displayInfo(txt);
-	*/
+
 
 	MVector aimVec;
 	MVector upVec;
 	MVector upVecCross;
 	MVector crossVec;
+	MVector slaveVec;
+
 	
 	aimVec = aimPos - srcPos;
-	upVec = upPos - srcPos;
-	crossVec = aimVec ^ upVec;
-	upVecCross = crossVec ^ upVec;
-
-	double outMatrixVal[4][4] = { {aimVec.x, aimVec.y, aimVec.z, 0},
-			{upVec.x, upVec.y, upVec.z, 0},
-			{crossVec.x, crossVec.y, crossVec.z, 0},
-			{0, 0, 0, 1 }
+	if (flipAim == true) {
+		aimVec = aimVec * -1;
 	};
-	MMatrix outMatrix(outMatrixVal);
+
+	upVec = upPos - srcPos;
+	aimVec.normalize();
+	upVec.normalize();
+
+	crossVec = aimVec ^ upVec;
+	upVecCross = crossVec ^ aimVec;
+	slaveVec =  upVecCross ^ aimVec;
 
 
-	MEulerRotation outRotate = MTransformationMatrix(outMatrix * offsetMatrix).eulerRotation();
+	if (flipUp == true) {
+		upVecCross = upVecCross * -1;
+	};
+
+	MMatrix outMatrix = placeVectorsInMatrix(aimAxis, upAxis, aimVec, upVecCross, slaveVec);
+
+	
+	//char txt[512];
+	//sprintf_s(txt, 512, "crossVec %f %f %f,", crossVec.x, crossVec.y, crossVec.z);
+	//MGlobal::displayInfo(txt);
+
+	double one = 1.0;
+	double scaleVar[3] = {one, one, one};
+	MTransformationMatrix OutTrMtx(outMatrix * offsetMatrix);
+
+	double scaleOutVar[3];
+	OutTrMtx.setScale(scaleOutVar, MSpace::kWorld);
+	
+	MEulerRotation outRotate = OutTrMtx.eulerRotation();
+	if (upType == 2) {
+		MVector testVec(1, 0, 0);
+		outRotate = noFlip(aimVec, testVec, upPos);
+	};
+
 
 	MDataHandle hOutputX = data.outputValue(attrOutRotateX);
 	MDataHandle hOutputY = data.outputValue(attrOutRotateY);
@@ -118,6 +152,8 @@ MStatus AimConstraint::initialize() {
 	MFnCompoundAttribute cmpAttr;
 	MFnMatrixAttribute mAttr;
 	MFnUnitAttribute uAttr;
+	MFnEnumAttribute enumAttr;
+	MFnAttribute boolAttr;
 	
 	// output rotates
 	attrOutRotateX = uAttr.create("rotateX", "rotateX", MFnUnitAttribute::kAngle);
@@ -142,6 +178,61 @@ MStatus AimConstraint::initialize() {
 	nAttr.setWritable(false);
 	nAttr.setStorable(false);
 	addAttribute(attrOutRotate);
+	// enum attrs
+	attrInAimAxis = enumAttr.create("aimAxis", "aimAxis");
+	enumAttr.addField("x", 0);
+	enumAttr.addField("y", 1);
+	enumAttr.addField("z", 2);
+	enumAttr.setKeyable(true);
+	enumAttr.setStorable(true);
+	addAttribute(attrInAimAxis);
+	attributeAffects(attrInAimAxis, attrOutRotateX);
+	attributeAffects(attrInAimAxis, attrOutRotateY);
+	attributeAffects(attrInAimAxis, attrOutRotateZ);
+	attributeAffects(attrInAimAxis, attrOutRotate);
+
+	attrInUpAxis = enumAttr.create("upAxis", "upAxis");
+	enumAttr.addField("x", 0);
+	enumAttr.addField("y", 1);
+	enumAttr.addField("z", 2);
+	enumAttr.setKeyable(true);
+	enumAttr.setStorable(true);
+	addAttribute(attrInUpAxis);
+	attributeAffects(attrInUpAxis, attrOutRotateX);
+	attributeAffects(attrInUpAxis, attrOutRotateY);
+	attributeAffects(attrInUpAxis, attrOutRotateZ);
+	attributeAffects(attrInUpAxis, attrOutRotate);
+
+	attrUpType = enumAttr.create("upType", "upType");
+	enumAttr.addField("upObject", 0);
+	enumAttr.addField("upRotation", 1);
+	enumAttr.addField("noUp", 2);
+	enumAttr.setKeyable(true);
+	enumAttr.setStorable(true);
+	addAttribute(attrUpType);
+	attributeAffects(attrUpType, attrOutRotateX);
+	attributeAffects(attrUpType, attrOutRotateY);
+	attributeAffects(attrUpType, attrOutRotateZ);
+	attributeAffects(attrUpType, attrOutRotate);
+
+	// bool attrs
+	attrInFlipUp = nAttr.create("flipUp", "flipUp", MFnNumericData::kBoolean, false);
+	nAttr.setKeyable(true);
+	nAttr.setStorable(true);
+	addAttribute(attrInFlipUp);
+	attributeAffects(attrInFlipUp, attrOutRotateX);
+	attributeAffects(attrInFlipUp, attrOutRotateY);
+	attributeAffects(attrInFlipUp, attrOutRotateZ);
+	attributeAffects(attrInFlipUp, attrOutRotate);
+
+	attrInFlipAim = nAttr.create("flipAim", "flipAim", MFnNumericData::kBoolean, false);
+	nAttr.setKeyable(true);
+	nAttr.setStorable(true);
+	addAttribute(attrInFlipAim);
+	attributeAffects(attrInFlipAim, attrOutRotateX);
+	attributeAffects(attrInFlipAim, attrOutRotateY);
+	attributeAffects(attrInFlipAim, attrOutRotateZ);
+	attributeAffects(attrInFlipAim, attrOutRotate);
 
 	// input transalte
 	attrInTranslateX = nAttr.create("translateX", "translateX", MFnNumericData::kFloat);
@@ -224,3 +315,41 @@ MStatus AimConstraint::initialize() {
 	return MS::kSuccess;
 
 }
+
+
+MMatrix AimConstraint::placeVectorsInMatrix(const short& aim, const short& up, const MVector& aimVec, const MVector& upVec, const MVector& prodVec )
+{	
+	MVector orderedVects[3] = { prodVec , prodVec , prodVec };
+
+	orderedVects[aim] = aimVec;
+	orderedVects[up] = upVec;
+
+	double outMatrixVal[4][4] = { {orderedVects[0].x, orderedVects[0].y, orderedVects[0].z, 0},
+		{orderedVects[1].x, orderedVects[1].y, orderedVects[1].z, 0},
+		{orderedVects[2].x, orderedVects[2].y, orderedVects[2].z, 0},
+		{0, 0, 0, 1 }
+	};
+	MMatrix outMatrix(outMatrixVal);
+
+	return outMatrix;
+}
+
+MEulerRotation AimConstraint::noFlip(const MVector& aimVec, const MVector& aimAxis, const MVector& upPos)
+{
+	MVector rotAxis = aimAxis ^ aimVec;
+	rotAxis.normalize();
+
+	//if (rotAxis.length() == 0) {
+	//	return;
+	//}
+	float dot = aimAxis * aimVec;
+	float ang = std::acosf(dot);
+	
+	// axis angle to quat
+	//auto s = std::sinf(ang / 2);
+	//MQuaternion outQuat(rotAxis.x, rotAxis.y, rotAxis.z, std::cosf(ang/2));
+	MQuaternion outQuat;
+	outQuat.setAxisAngle(rotAxis, ang);
+	return outQuat.asEulerRotation();
+}
+

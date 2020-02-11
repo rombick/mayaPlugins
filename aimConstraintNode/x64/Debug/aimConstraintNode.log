@@ -1,2 +1,5 @@
 ﻿  aimConstraintNode.cpp
+C:\Users\roman\source\repos\mayaPlugins\aimConstraintNode\aimConstraintNode.cpp(345): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+  plugin_main.cpp
+  Generating Code...
   aimConstraintNode.vcxproj -> C:\Users\roman\source\repos\mayaPlugins\mayaPlugins\x64\Debug\aimConstraintNode.mll
